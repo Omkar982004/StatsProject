@@ -11,7 +11,8 @@ import yfinance as yf
 
 # Import the required libraries
 from statsmodels.tsa.ar_model import AutoReg
-
+from statsmodels.tsa.arima.model import ARIMA
+from sklearn.metrics import mean_squared_error
 
 # Create function to fetch stock name and id
 def fetch_stocks():
@@ -135,7 +136,7 @@ def fetch_stock_info(stock_ticker):
         },
     }
 
-    # Return the stock data
+    # Return the stock dataa
     return stock_data_info
 
 
@@ -154,16 +155,16 @@ def fetch_stock_history(stock_ticker, period, interval):
 
 
 # Function to generate the stock prediction
-def generate_stock_prediction(stock_ticker):
+def generate_stock_prediction(stock_ticker, model_type='AutoRegressive'):
     # Try to generate the predictions
     try:
         # Pull the data for the first security
         stock_data = yf.Ticker(stock_ticker)
 
-        # Extract the data for last 1yr with 1d interval
+        # Extract the data for last 2 years with 1d interval
         stock_data_hist = stock_data.history(period="2y", interval="1d")
 
-        # Clean the data for to keep only the required columns
+        # Clean the data to keep only the required columns
         stock_data_close = stock_data_hist[["Close"]]
 
         # Change frequency to day
@@ -176,25 +177,29 @@ def generate_stock_prediction(stock_ticker):
         train_df = stock_data_close.iloc[: int(len(stock_data_close) * 0.9) + 1]  # 90%
         test_df = stock_data_close.iloc[int(len(stock_data_close) * 0.9) :]  # 10%
 
-        # Define training model
-        model = AutoReg(train_df["Close"], 250).fit(cov_type="HC0")
+        # Initialize variables for predictions and accuracy
+        predictions = None
+        forecast = None
 
-        # Predict data for test data
-        predictions = model.predict(
-            start=test_df.index[0], end=test_df.index[-1], dynamic=True
-        )
+        if model_type == 'AutoRegressive':
+            # Define AutoRegressive model
+            model = AutoReg(train_df['Close'], lags=5)  # You can adjust the number of lags
+            model_fit = model.fit()
+            predictions = model_fit.predict(start=len(train_df), end=len(train_df) + len(test_df) - 1, dynamic=False)
+            forecast = predictions[-len(test_df):]  # Use the last part for forecast
+            accuracy = mean_squared_error(test_df['Close'], predictions) ** 0.5  # RMSE calculation
 
-        # Predict 90 days into the future
-        forecast = model.predict(
-            start=test_df.index[0],
-            end=test_df.index[-1] + dt.timedelta(days=90),
-            dynamic=True,
-        )
+        elif model_type == 'ARIMA':
+            # Define ARIMA model; here you can set p, d, q parameters
+            model = ARIMA(train_df['Close'], order=(5, 1, 0))  # Adjust the order based on your data
+            model_fit = model.fit()
+            forecast = model_fit.forecast(steps=len(test_df))
+            predictions = forecast  # In ARIMA, the forecast is the prediction
+            accuracy = mean_squared_error(test_df['Close'], predictions) ** 0.5  # RMSE calculation
 
-        # Return the required data
-        return train_df, test_df, forecast, predictions
+        # Return train, test, forecast, predictions, and accuracy
+        return train_df, test_df, forecast, predictions, accuracy
 
-    # If error occurs
-    except:
-        # Return None
-        return None, None, None, None
+    except Exception as e:
+        print(f"Error in prediction: {e}")
+        return None, None, None, None, None  # Return None if an error occurs

@@ -11,7 +11,6 @@ st.set_page_config(
     page_icon="📈",
 )
 
-
 #####Sidebar Start#####
 
 # Add a sidebar
@@ -48,6 +47,10 @@ period = st.sidebar.selectbox("Choose a period", list(periods.keys()))
 st.sidebar.markdown("### **Select interval**")
 interval = st.sidebar.selectbox("Choose an interval", periods[period])
 
+# Add a selector for model type
+st.sidebar.markdown("### **Select Prediction Model**")
+model_type = st.sidebar.selectbox("Choose a model type", ["AutoRegressive", "ARIMA"])
+
 #####Sidebar End#####
 
 
@@ -65,7 +68,6 @@ st.markdown("##### **Enhance Investment Decisions through Data-Driven Forecastin
 # Fetch the stock historical data
 stock_data = fetch_stock_history(stock_ticker, period, interval)
 
-
 #####Historical Data Graph#####
 
 # Add a title to the historical data graph
@@ -73,15 +75,13 @@ st.markdown("## **Historical Data**")
 
 # Create a plot for the historical data
 fig = go.Figure(
-    data=[
-        go.Candlestick(
-            x=stock_data.index,
-            open=stock_data["Open"],
-            high=stock_data["High"],
-            low=stock_data["Low"],
-            close=stock_data["Close"],
-        )
-    ]
+    data=[go.Candlestick(
+        x=stock_data.index,
+        open=stock_data["Open"],
+        high=stock_data["High"],
+        low=stock_data["Low"],
+        close=stock_data["Close"],
+    )]
 )
 
 # Customize the historical data graph
@@ -96,12 +96,15 @@ st.plotly_chart(fig, use_container_width=True)
 #####Stock Prediction Graph#####
 
 # Unpack the data
-train_df, test_df, forecast, predictions = generate_stock_prediction(stock_ticker)
+train_df, test_df, forecast, predictions, accuracy = generate_stock_prediction(stock_ticker, model_type)
 
 # Check if the data is not None
 if train_df is not None and (forecast >= 0).all() and (predictions >= 0).all():
     # Add a title to the stock prediction graph
     st.markdown("## **Stock Prediction**")
+
+    # Display accuracy
+    st.markdown(f"### **Root Mean Squared Error (RMSE): {accuracy:.2f}**")
 
     # Create a plot for the stock prediction
     fig = go.Figure(
